@@ -1,0 +1,190 @@
+#!/bin/bash
+SCRIPT_VERSION=0.02
+
+# WORKDIR="/home/opensrf/develop/evergreen2/current"
+# use current directory
+WORKDIR="$(dirname $(readlink -f $0))"
+#WORKDIR=`pwd`
+if [ ! -z $1 ]; then
+	VERSION=$1
+else
+VERSION="2.0.6"
+fi
+echo $VERSION
+# Customized files need to build the package.
+BUILDFILESDIR="${WORKDIR}/files_for_build"
+
+PKGFILE="Evergreen-ILS-$VERSION.tar.gz"
+PKGNAME="Evergreen-ILS-$VERSION"
+NEWPKGFILE="evergreen-ils-$VERSION.tar.gz"
+NEWPKGNAME="evergreen-ils-$VERSION"
+
+
+EVERGREEN_PREFIX="/openils"
+#ORIG_FOLDER="/home/opensrf/develop/evergreen2/"
+ORIG_PKGFILE="/home/opensrf/develop/evergreen2/${PKGFILE}"
+SOURCE_FOLDER="${WORKDIR}/${NEWPKGNAME}"
+DEST_ROOT="${SOURCE_FOLDER}/debian/evergreen-ils"
+export DEBEMAIL="$(grep @ ${BUILDFILESDIR}/control|awk -F"[<>]" '{ print $2 }')"
+export DEBFULLNAME="$(grep @ ${BUILDFILESDIR}/control|awk -F"[<>:]" '{ print $2 }')"
+
+cd $WORKDIR
+
+if [ ! -e "$ORIG_PKGFILE" ]
+        then
+        echo "$ORIG_PKGFILE not found exiting..."
+        echo
+        exit 1
+fi
+
+if [ "$1" = "b" ] || [ "$1" = "-b" ]
+        then
+        echo
+        echo "Not including Source"
+        echo
+        BuildPackage () {
+        echo
+        echo "Running dpkg-build-package -b -nc"
+        sleep 1
+        dpkg-buildpackage -b 
+        }
+                else
+                BuildPackage () {
+                echo
+                echo "Running dpkg-build-package -F"
+                sleep 1
+                dpkg-buildpackage -F
+                }
+fi
+
+## currently we are simply deleting and recreating everything here.
+
+rm -f ${WORKDIR}/*.changes
+rm -f ${WORKDIR}/*.dsc
+rm -f ${WORKDIR}/*.deb
+rm -f ${WORKDIR}/*.gz && echo "Removed old package files"
+rm -rf $SOURCE_FOLDER && echo "Removed $SOURCE_FOLDER" && \
+sleep 1 && \
+echo ">>>Untarring: ${PKGNAME}"
+tar zxf ${ORIG_PKGFILE} -C ${WORKDIR} && \
+mv ${WORKDIR}/${PKGNAME} ${WORKDIR}/${NEWPKGNAME}
+cp -f ${ORIG_PKGFILE} ${WORKDIR}/${NEWPKGFILE} && \
+cd $SOURCE_FOLDER && \
+echo "Running dh_make on $NEWPKGFILE" && \
+sleep 1 && \
+dh_make -s -n
+echo "Restoring rules file." && \
+sleep 2 && \
+mkdir -p ${SOURCE_FOLDER}/DEBIAN/evergreen-ils/etc/init.d && \
+mkdir -p ${SOURCE_FOLDER}/debian/evergreen-ils/etc/init.d && \
+
+# copy our modified files to the debian folder in the source folder.
+cp ${BUILDFILESDIR}/rules ${SOURCE_FOLDER}/debian/rules && \
+cp ${BUILDFILESDIR}/control ${SOURCE_FOLDER}/debian/control && \
+cp ${BUILDFILESDIR}/CONTROL ${SOURCE_FOLDER}/DEBIAN/control && \
+cp ${BUILDFILESDIR}/config ${SOURCE_FOLDER}/debian/config && \
+cp ${BUILDFILESDIR}/config ${SOURCE_FOLDER}/DEBIAN/config && \
+cp ${BUILDFILESDIR}/postinst ${SOURCE_FOLDER}/debian/postinst && \
+cp ${BUILDFILESDIR}/postinst ${SOURCE_FOLDER}/DEBIAN/postinst && \
+cp ${BUILDFILESDIR}/postrm ${SOURCE_FOLDER}/debian/postrm && \
+cp ${BUILDFILESDIR}/postrm ${SOURCE_FOLDER}/DEBIAN/postrm && \
+#cp ${BUILDFILESDIR}/prerm ${SOURCE_FOLDER}/debian/prerm && \
+#cp ${BUILDFILESDIR}/prerm ${SOURCE_FOLDER}/DEBIAN/prerm && \
+cp ${BUILDFILESDIR}/templates ${SOURCE_FOLDER}/debian/templates && \
+cp ${BUILDFILESDIR}/templates ${SOURCE_FOLDER}/DEBIAN/templates && \
+cp ${BUILDFILESDIR}/eg_database ${SOURCE_FOLDER}/debian/evergreen-ils/etc/init.d && \
+cp ${BUILDFILESDIR}/eg_database ${SOURCE_FOLDER}/DEBIAN/evergreen-ils/etc/init.d && \
+
+
+
+############### Standard build failed because some components were being installed into build system  ###########
+############### intead of destination target ${SOURCE_FOLDER}/debian/evergreen-ils/openils ######################
+echo && \
+## Standard build failed due mixing of paths . 
+sed -i 's^$(perldir)^$(DESTDIR)$(perldir)^g'  ${SOURCE_FOLDER}/Open-ILS/src/Makefile.am
+sed -i 's^$(perldir)^$(DESTDIR)$(perldir)^g'  ${SOURCE_FOLDER}/Open-ILS/src/Makefile.in
+
+
+sed -i 's^reportsdir = $(DESTDIR)$(WEBDIR)/reports^reportsdir = $(WEBDIR)/reports^g' ${SOURCE_FOLDER}/Open-ILS/web/Makefile.in
+sed -i 's^reportsdir = $(DESTDIR)$(WEBDIR)/reports^reportsdir = $(WEBDIR)/reports^g' ${SOURCE_FOLDER}/Open-ILS/web/Makefile.am
+
+
+
+#for building the staff client, wants to install it in /openils/var/web/xul on the *build* system
+
+#first off, someone used {} instead of () for 1 instance of WEBDIR
+sed -i 's^${WEBDIR}^$(WEBDIR)^g' ${SOURCE_FOLDER}/Open-ILS/xul/staff_client/Makefile.in
+sed -i 's^${WEBDIR}^$(WEBDIR)^g' ${SOURCE_FOLDER}/Open-ILS/xul/staff_client/Makefile.am
+#now fix the path
+sed -i 's^$(WEBDIR)^$(DESTDIR)$(WEBDIR)^g' ${SOURCE_FOLDER}/Open-ILS/xul/staff_client/Makefile.in
+sed -i 's^$(WEBDIR)^$(DESTDIR)$(WEBDIR)^g' ${SOURCE_FOLDER}/Open-ILS/xul/staff_client/Makefile.am
+
+
+sed -i 's/$(DESTDIR)$(oilsincludedir)/$(oilsincludedir)/g' ${SOURCE_FOLDER}/Open-ILS/src/Makefile.am
+sed -i 's/$(DESTDIR)$(oilsincludedir)/$(oilsincludedir)/g' ${SOURCE_FOLDER}/Open-ILS/src/Makefile.in
+
+#####################################################################################################################
+#####################################################################################################################
+
+#Debian doesn't like having the same files provided by multiple packages. Rename the example files provided by evergreen that conflict with opensrf.
+sed -i 's/opensrf.xml.example/opensrf.xml.evergreen.example/g' ${SOURCE_FOLDER}/Open-ILS/src/Makefile.in
+sed -i 's/opensrf.xml.example/opensrf.xml.evergreen.example/g' ${SOURCE_FOLDER}/Open-ILS/src/Makefile.am
+sed -i 's/opensrf_core.xml.example/opensrf_core.xml.evergreen.example/g' ${SOURCE_FOLDER}/Open-ILS/src/Makefile.in
+sed -i 's/opensrf_core.xml.example/opensrf_core.xml.evergreen.example/g' ${SOURCE_FOLDER}/Open-ILS/src/Makefile.am
+mv ${SOURCE_FOLDER}/Open-ILS/examples/opensrf.xml.example ${SOURCE_FOLDER}/Open-ILS/examples/opensrf.xml.evergreen.example
+mv ${SOURCE_FOLDER}/Open-ILS/examples/opensrf_core.xml.example ${SOURCE_FOLDER}/Open-ILS/examples/opensrf_core.xml.evergreen.example
+
+
+#mkdir -p ${SOURCE_FOLDER}/debian/evergreen-ils/etc/apache2/sites-available
+#cp -Rv ${SOURCE_FOLDER}/Open-ILS/examples/apache/eg.conf       ${SOURCE_FOLDER}/debian/evergreen-ils/etc/apache2/sites-available/
+#cp -Rv ${SOURCE_FOLDER}/Open-ILS/examples/apache/eg_vhost.conf ${SOURCE_FOLDER}/debian/evergreen-ils/etc/apache2/
+#cp -Rv ${SOURCE_FOLDER}/Open-ILS/examples/apache/startup.pl    ${SOURCE_FOLDER}/debian/evergreen-ils/etc/apache2/
+
+#fix apxs2 install stuff
+APACHE_CONF=${DEST_ROOT}/etc/apache2/
+APACHE_MODS=${DEST_ROOT}/usr/lib/apache2/modules/
+#mkdir -pv $APACHE_CONF
+#mkdir -pv $APACHE_MODS
+#mkdir -pv ${DEST_ROOT}/etc/apache2/mods-available
+
+#APXS2 tries to install the mods in the final destination on *this* system, (/etc/apache2...) We need to override this to go into the <build>/debian/evergreen-ils/etc... folder.
+#We fix the .load files apxs2 creates in postinst or rules.
+APACHE_IN=${SOURCE_FOLDER}/Open-ILS/src/apachemods/Makefile.in
+APACHE_AM=${SOURCE_FOLDER}/Open-ILS/src/apachemods/Makefile.am
+sed -i "s^(APXS2) -i -a @srcdir@/mod_xmlent.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/mod_xmlent.la^g" ${APACHE_IN}
+sed -i "s^(APXS2) -i -a @srcdir@/mod_xmlent.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/mod_xmlent.la^g" ${APACHE_AM}
+sed -i "s^(APXS2) -i -a @srcdir@/mod_idlchunk.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/mod_idlchunk.la^g" ${APACHE_IN}
+sed -i "s^(APXS2) -i -a @srcdir@/mod_idlchunk.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/mod_ididllchunk.la^g" ${APACHE_AM}
+
+#fix apache .load path screwups
+
+###TODO: not sure if this is necessary anymore. I think we do this in rules or postinst now.
+#echo "LoadModule xmlent_module      /usr/lib/apache2/modules/mod_xmlent.so" > "${DEST_ROOT}/etc/apache2/mods-available/xmlent.load"
+
+
+
+#copy support scripts into openils/bin since /home/opensrf/<src> isn't available anymore
+mkdir -p "${DEST_ROOT}${EVERGREEN_PREFIX}/bin"
+mkdir -p "${DEST_ROOT}${EVERGREEN_PREFIX}/share/doc/examples/"
+cp -r ${SOURCE_FOLDER}/Open-ILS/src/support-scripts/* "${DEST_ROOT}${EVERGREEN_PREFIX}/bin/"
+cp -r ${SOURCE_FOLDER}/Open-ILS/src/sql "${DEST_ROOT}${EVERGREEN_PREFIX}/share/doc/examples/"
+
+
+
+#eg_db_config.pls is expecting certain relative paths. Since we no longer operate from /home/opensrf/<src> we need to make minor tweaks.
+sed -i "s^../extras/eg_config^eg_config^g" ${DEST_ROOT}/openils/bin/eg_db_config.pl
+sed -i "s^../sql/Pg/build-db.sh^../share/doc/examples/sql/Pg/build-db.sh^g" ${DEST_ROOT}/openils/bin/eg_db_config.pl
+
+#TODO: Not sure this should be even in this package. Move to libdbi?
+mkdir -p ${DEST_ROOT}/etc/ld.so.conf.d
+echo "/usr/lib/dbd" > ${DEST_ROOT}/etc/ld.so.conf.d/eg.conf
+
+
+
+echo
+echo "Source Folder is: ${SOURCE_FOLDER}"
+sleep 3
+BuildPackage
+
+cd $WORKDIR
+

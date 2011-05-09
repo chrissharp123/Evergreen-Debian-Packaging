@@ -1,0 +1,103 @@
+#!/bin/bash
+VERSION_=0.01
+
+#WORKDIR="/home/opensrf/develop/opensrf/current"
+WORKDIR=`pwd`
+BUILDFILESDIR="${WORKDIR}/files_for_build"
+PKGFILE="opensrf-1.6.3.tar.gz"
+
+OPENSRF_PREFIX="/openils"
+OPENSRF_CONF_DIR="/openils/conf"
+
+ORIG_PKGFILE="/home/opensrf/develop/opensrf/${PKGFILE}"
+SOURCE_FOLDER="${WORKDIR}/$(echo $PKGFILE|awk -F".tar" '{ print $1 }')"
+DEST_ROOT="${SOURCE_FOLDER}/debian/opensrf"
+export DEBEMAIL="$(grep @ ${WORKDIR}/control|awk -F"[<>]" '{ print $2 }')"
+export DEBFULLNAME="$(grep @ ${WORKDIR}/control|awk -F"[<>:]" '{ print $2 }')"
+
+cd $WORKDIR
+
+if [ ! -e "$ORIG_PKGFILE" ] 
+	then
+	echo "$ORIG_PKGFILE not found exiting..."
+	echo
+	exit 1
+fi
+
+if [ "$1" = "b" ] || [ "$1" = "-b" ]
+	then
+	echo
+	echo "Not including Source"
+	echo
+	BuildPackage () {
+	echo
+	echo "Running dpkg-build-package -b -nc"
+	#sleep 3
+	dpkg-buildpackage -b -nc
+	}
+		else
+		BuildPackage () {
+		echo
+		echo "Running dpkg-build-package -F -nc"
+                #sleep 3
+        	dpkg-buildpackage -F -nc
+        	}
+fi
+
+rm -f ${WORKDIR}/*.changes
+rm -f ${WORKDIR}/*.dsc
+rm -f ${WORKDIR}/*.deb 
+rm -f ${WORKDIR}/*.gz && echo "Removed old package files"
+#[ -e "$SOURCE_FOLDER/debian/rules" ] && cp $SOURCE_FOLDER/debian/rules ${WORKDIR} -i 
+#sleep 1 && \
+rm -rf $SOURCE_FOLDER && echo "Removed $SOURCE_FOLDER" && \
+#sleep 2 && \
+tar zxf ${ORIG_PKGFILE} -C ${WORKDIR} && \
+cp -f ${ORIG_PKGFILE} ${WORKDIR} && \
+cd $SOURCE_FOLDER && \
+echo "Running dh_make on $PKGFILE" && \
+#sleep 4 && \
+#dh_make -s -f ../${PKGFILE} && \
+dh_make -s -n && \
+echo "Restoring rules file." && \
+#sleep 4 && \
+mkdir -p ${SOURCE_FOLDER}/DEBIAN && \
+cp ${BUILDFILESDIR}/rules ${SOURCE_FOLDER}/debian/rules && \
+cp ${BUILDFILESDIR}/control ${SOURCE_FOLDER}/debian/control && \
+cp ${BUILDFILESDIR}/CONTROL ${SOURCE_FOLDER}/DEBIAN/control && \
+cp ${BUILDFILESDIR}/config ${SOURCE_FOLDER}/debian/config && \
+cp ${BUILDFILESDIR}/config ${SOURCE_FOLDER}/DEBIAN/config && \
+cp ${BUILDFILESDIR}/postinst ${SOURCE_FOLDER}/debian/postinst && \
+cp ${BUILDFILESDIR}/postinst ${SOURCE_FOLDER}/DEBIAN/postinst && \
+#cp -p ${WORKDIR}/eg_opensrf ${SOURCE_FOLDER}/examples && \
+cp ${BUILDFILESDIR}/postrm ${SOURCE_FOLDER}/debian/postrm && \
+cp ${BUILDFILESDIR}/postrm ${SOURCE_FOLDER}/DEBIAN/postrm && \
+cp ${BUILDFILESDIR}/prerm ${SOURCE_FOLDER}/debian/prerm && \
+cp ${BUILDFILESDIR}/prerm ${SOURCE_FOLDER}/DEBIAN/prerm && \
+cp ${BUILDFILESDIR}/templates ${SOURCE_FOLDER}/debian/templates && \
+cp ${BUILDFILESDIR}/templates ${SOURCE_FOLDER}/DEBIAN/templates && \
+echo 
+#sed -i '72i\\tmkdir -p $(DESTDIR)/etc/init.d && cp -r @top_srcdir@/examples/eg_opensrf $(DESTDIR)/etc/init.d' ${SOURCE_FOLDER}/src/Makefile.am && \
+sed -i "s^perl Build.PL^perl Build.PL install_base='../../debian/opensrf/$OPENSRF_PREFIX'^g" ${SOURCE_FOLDER}/src/perl/Makefile.am
+
+cp -v ${BUILDFILESDIR}/eg_opensrf ${SOURCE_FOLDER}/debian/init.d
+#set conf files
+#echo "$OPENSRF_CONF_DIR/opensrf.xml" > ${SOURCE_FOLDER}/debian/conffiles
+#echo "$OPENSRF_CONF_DIR/opensrf_core.xml" > ${SOURCE_FOLDER}/debian/conffiles
+
+
+#fix apxs2 install stuff
+APACHE_CONF=${DEST_ROOT}/etc/apache2/
+APACHE_MODS=${DEST_ROOT}/usr/lib/apache2/modules/
+mkdir -pv $APACHE_CONF
+mkdir -pv $APACHE_MODS
+mkdir -pv ${DEST_ROOT}/etc/apache2/mods-available
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_json_gateway.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_json_gateway.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.in
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_json_gateway.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_json_gateway.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.am
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_http_translator.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_http_translator.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.in
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_http_translator.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_http_translator.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.am
+
+
+BuildPackage
+
+cd $WORKDIR

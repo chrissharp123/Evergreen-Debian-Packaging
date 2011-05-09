@@ -1,0 +1,69 @@
+#!/bin/sh
+#CODE SOURCE: Ejabberd config (.deb file)
+set -e
+#templates:
+#evergreen-ils/
+# eg_db_password
+# verify_eg_db_password
+# ejabber_password
+# verify_ejabber_password
+# user_nomatch
+# ejabber_notmatch
+get_eg_db_password()
+{
+  db_input high evergreen-ils/eg_db_password || true
+  db_input high evergreen-ils/verify_eg_db_password || true
+  db_go || true
+  db_get evergreen-ils/eg_db_password
+  PASSWORD="$RET"
+  db_get evergreen-ils/verify_eg_db_password
+  VERIFY="$RET"
+  if [ "$PASSWORD" != "$VERIFY" ]; then
+    db_input critical evergreen-ils/pass_nomatch || true
+    db_go || true
+    get_eg_db_password
+  fi
+}
+
+
+get_evergreen_admin_user()
+{
+  db_input high evergreen-ils/evergreen_admin_user || true
+  #db_input high evergreen-ils/verify_evergreen_admin_user || true
+  db_go || true
+  #db_get evergreen-ils/evergreen_admin_user
+  #PASSWORD="$RET"
+  #db_get evergreen-ils/verify_evergreen_admin_user
+  #VERIFY="$RET"
+  #if [ "$PASSWORD" != "$VERIFY" ]; then
+  #  db_input critical evergreen-ils/pass_nomatch || true
+  #  db_go || true
+  #  get_evergreen_admin_user
+  #fi
+}
+
+get_evergreen_admin_password()
+{
+  db_input high evergreen-ils/evergreen_admin_password || true
+  db_input high evergreen-ils/verify_evergreen_admin_password || true
+  db_go || true
+  db_get evergreen-ils/evergreen_admin_password
+  PASSWORD="$RET"
+  db_get evergreen-ils/verify_evergreen_admin_password
+  VERIFY="$RET"
+  if [ "$PASSWORD" != "$VERIFY" ]; then
+    db_input critical evergreen-ils/admin_pass_nomatch || true
+    db_go || true
+    get_evergreen_admin_password
+  fi
+}
+
+# Source debconf library.
+. /usr/share/debconf/confmodule
+
+
+get_eg_db_password
+get_evergreen_admin_user
+get_evergreen_admin_password
+exit 0
+

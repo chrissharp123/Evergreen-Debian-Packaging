@@ -1,0 +1,16 @@
+Source: spidermonkey-perl
+Section: devel
+Priority: extra
+Maintainer: Joshua Lamos <jlamos@georgialibraries.org>
+Build-Depends: debhelper (>= 7.0.50~)
+Standards-Version: 3.8.4
+Homepage: http://cpansearch.perl.org/src/TBUSCH/JavaScript-SpiderMonkey-0.20/SpiderMonkey.pm
+
+Package: spidermonkey-perl
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: SpiderMonkey is the code-name for the Mozilla's C implementation of JavaScript
+ SpiderMonkey is the code name for the first-ever JavaScript engine, 
+ written by Brendan Eich at Netscape Communications, 
+ later released as open source and now maintained by the Mozilla Foundation.
+ This is the Perl interface for Spidermonkey
