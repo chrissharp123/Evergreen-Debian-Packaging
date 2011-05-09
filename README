@@ -4,3 +4,5 @@ Evergreen Debian Packaging Project
 (c) 2011 Georgia Public Library Service
 
 This repository is for the GPLS Evergreen Debian Packaging project, which was originally begun for the benefit of the system administrators of the Georgia PINES Program to ease administration of a multiserver cluster.  It is our hope that this will be a useful contribution to the larger Evergreen community, and as such, we are sharing our work publicly.  We also hope to learn from the many Evergreen developers and system administrators who may be able to guide our project in the right direction.  Please send any questions about this project to the Evergreen Development email list at open-ils-dev@list.georgialibraries.org.
+
+Changing this.
