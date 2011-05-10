@@ -96,6 +96,25 @@ cp -v ${BUILDFILESDIR}/eg_opensrf ${SOURCE_FOLDER}/debian/init.d
 #echo "$OPENSRF_CONF_DIR/opensrf_core.xml" > ${SOURCE_FOLDER}/debian/conffiles
 
 
+#Some folders still reference prefix as an absolutely path.
+sed -i 's^$(MKDIR_P) $(VAR)^$(MKDIR_P) $(DESTDIR)/$(VAR)^g' ${SOURCE_FOLDER}/src/Makefile.in
+sed -i 's^$(MKDIR_P) $(PID)^$(MKDIR_P) $(DESTDIR)/$(PID)^g' ${SOURCE_FOLDER}/src/Makefile.in
+sed -i 's^$(MKDIR_P) $(LOG)^$(MKDIR_P) $(DESTDIR)/$(LOG)^g' ${SOURCE_FOLDER}/src/Makefile.in
+sed -i 's^$(MKDIR_P) $(SOCK)^$(MKDIR_P) $(DESTDIR)/$(SOCK)^g' ${SOURCE_FOLDER}/src/Makefile.in
+sed -i 's^$(MKDIR_P) $(jsdir)^$(MKDIR_P) $(DESTDIR)/$(jsdir)^g' ${SOURCE_FOLDER}/src/Makefile.in
+#sed -i 's^cp -r @srcdir@/javascript/* $(jsdir)/^cp -r @srcdir@/javascript/* $(DESTDIR)/$(jsdir)/^g' ${SOURCE_FOLDER}/src/Makefile.in
+sed -i 's^cp -r @srcdir@/javascript/\* $(jsdir)/^cp -r @srcdir@/javascript/\* $(DESTDIR)/$(jsdir)/^g' ${SOURCE_FOLDER}/src/Makefile.in
+sed -i 's^cp -r @srcdir@/javascript/\* $(jsdir)/^cp -r @srcdir@/javascript/\* $(DESTDIR)/$(jsdir)/^g' ${SOURCE_FOLDER}/src/Makefile.am
+sed -i 's^$(MKDIR_P) $(VAR)^$(MKDIR_P) $(DESTDIR)/$(VAR)^g' ${SOURCE_FOLDER}/src/Makefile.am
+sed -i 's^$(MKDIR_P) $(PID)^$(MKDIR_P) $(DESTDIR)/$(PID)^g' ${SOURCE_FOLDER}/src/Makefile.am
+sed -i 's^$(MKDIR_P) $(LOG)^$(MKDIR_P) $(DESTDIR)/$(LOG)^g' ${SOURCE_FOLDER}/src/Makefile.am
+sed -i 's^$(MKDIR_P) $(SOCK)^$(MKDIR_P) $(DESTDIR)/$(SOCK)^g' ${SOURCE_FOLDER}/src/Makefile.am
+sed -i 's^$(MKDIR_P) $(jsdir)^$(MKDIR_P) $(DESTDIR)/$(jsdir)^g' ${SOURCE_FOLDER}/src/Makefile.am
+#cp -r ./javascript/* /openils/lib/javascript/
+#cp: target `/openils/lib/javascript/' is not a directory
+
+
+
 ## fix apxs2 install stuff
 APACHE_CONF=${DEST_ROOT}/etc/apache2/
 APACHE_MODS=${DEST_ROOT}/usr/lib/apache2/modules
