@@ -15,11 +15,11 @@ OPENSRF_PREFIX="/openils"
 ## OpenSRF config directory.
 OPENSRF_CONF_DIR="${OPENSRF_PREFIX}/conf"
 
-ORIG_PKGFILE="/home/opensrf/develop/opensrf/${PKGFILE}"
+ORIG_PKGFILE="../${PKGFILE}"
 SOURCE_FOLDER="${WORKDIR}/$(echo $PKGFILE|awk -F".tar" '{ print $1 }')"
 DEST_ROOT="${SOURCE_FOLDER}/debian/opensrf"
-export DEBEMAIL="$(grep @ ${WORKDIR}/control|awk -F"[<>]" '{ print $2 }')"
-export DEBFULLNAME="$(grep @ ${WORKDIR}/control|awk -F"[<>:]" '{ print $2 }')"
+export DEBEMAIL="$(grep @ ${BUILDFILESDIR}/control|awk -F"[<>]" '{ print $2 }')"
+export DEBFULLNAME="$(grep @ ${BUILDFILESDIR}/control|awk -F"[<>:]" '{ print $2 }')"
 
 cd $WORKDIR
 
@@ -98,14 +98,14 @@ cp -v ${BUILDFILESDIR}/eg_opensrf ${SOURCE_FOLDER}/debian/init.d
 
 ## fix apxs2 install stuff
 APACHE_CONF=${DEST_ROOT}/etc/apache2/
-APACHE_MODS=${DEST_ROOT}/usr/lib/apache2/modules/
+APACHE_MODS=${DEST_ROOT}/usr/lib/apache2/modules
 mkdir -pv $APACHE_CONF
 mkdir -pv $APACHE_MODS
 mkdir -pv ${DEST_ROOT}/etc/apache2/mods-available
-sed -i "s^(APXS2) -i -a @srcdir@/osrf_json_gateway.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_json_gateway.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.in
-sed -i "s^(APXS2) -i -a @srcdir@/osrf_json_gateway.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_json_gateway.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.am
-sed -i "s^(APXS2) -i -a @srcdir@/osrf_http_translator.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_http_translator.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.in
-sed -i "s^(APXS2) -i -a @srcdir@/osrf_http_translator.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i -a @srcdir@/osrf_http_translator.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.am
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_json_gateway.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i  @srcdir@/osrf_json_gateway.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.in
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_json_gateway.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i  @srcdir@/osrf_json_gateway.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.am
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_http_translator.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i  @srcdir@/osrf_http_translator.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.in
+sed -i "s^(APXS2) -i -a @srcdir@/osrf_http_translator.la^(APXS2) -S LIBEXECDIR='$APACHE_MODS' -S SYSCONFDIR='$APACHE_CONF' -i  @srcdir@/osrf_http_translator.la^g" ${SOURCE_FOLDER}/src/gateway/Makefile.am
 
 
 BuildPackage
