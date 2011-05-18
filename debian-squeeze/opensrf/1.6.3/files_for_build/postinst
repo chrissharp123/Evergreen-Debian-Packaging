@@ -1,0 +1,240 @@
+#!/bin/bash
+set -e
+set +x
+#Can this be fetched from dpkg?
+OPENSRF_PREFIX="/openils"
+. /usr/share/debconf/confmodule
+HFQDN=$(perl -MNet::Domain -e 'print Net::Domain::hostfqdn() . "\n";')
+DEBUG()
+{
+	if [ $_DEBUG > 0 ]; then  $@;fi
+}
+modify_hosts_file() 
+{
+HOSTS_FILE_TAG="OPENSRF_DEB Addresses"
+if ! grep -q "$HOSTS_FILE_TAG" /etc/hosts
+	then 
+		cp -f /etc/hosts /etc/hosts.orig
+		DEBUG echo "Adding entries to /etc/hosts..."
+		sed -i "2i\#$HOSTS_FILE_TAG" /etc/hosts
+		sed -i "3i\127.0.1.2\tpublic.$HFQDN\tpublic #OPENSRF_DEB" /etc/hosts
+		sed -i "4i\127.0.1.3\tprivate.$HFQDN\tprivate #OPENSRF_DEB" /etc/hosts
+		sed -i '5i\ ' /etc/hosts
+	else
+		DEBUG echo "Hosts file has already been modified!"
+		
+fi
+} #modify_hosts_file()
+add_opensrf_user() {
+if ! grep -q "^opensrf:" /etc/passwd 
+	then
+		DEBUG echo "Opensrf user does not exist! Creating..."
+		useradd -m -s /bin/bash opensrf
+
+		db_get opensrf/user_password || true
+		PASS=$RET
+		tfile=`mktemp`
+		if [ ! -f "$tfile" ]; then
+			echo "ERROR Creating temp file!"
+		        return 1
+		fi
+		
+		DEBUG echo "creating tmp pw file as $tfile"
+cat << EOF > $tfile
+opensrf:$PASS
+EOF
+DEBUG echo "about to change"
+		cat $tfile | chpasswd	
+DEBUG echo "about to rm"
+		rm $tfile
+		DEBUG echo "Set user opensrf's password"
+	else
+		DEBUG echo "Opensrf user already exists, so not doing anything!"
+		
+
+fi  
+
+
+
+if ! grep -q "$OPENSRF_PREFIX/bin" /home/opensrf/.bashrc
+	then
+		DEBUG echo "Adding path for opensrf user..."
+		sed -i "2i\export PATH=$OPENSRF_PREFIX/bin:\$PATH" /home/opensrf/.bashrc
+		sed -i "3i\export PERL5LIB=/openils/lib/perl5:$PERL5LIB" /home/opensrf/.bashrc
+	else
+		DEBUG echo "OpenSRF Path already added!"
+fi
+} #add_opensrf_user()
+
+#EJABBERD SECTION
+reconfigure_ejabberd()
+{
+if grep -q "^{hosts, \[\"localhost\"]}" /etc/ejabberd/ejabberd.cfg 
+	then
+		DEBUG echo "Stock ejabberd detecting. Stopping and modifying config!"
+		/etc/init.d/ejabberd stop
+		cp /etc/ejabberd/ejabberd.cfg /etc/ejabberd/ejabberd.cfg.orig
+		sed -i "s/^{hosts, \[\"localhost\"\]}/{hosts, [\"localhost\", \"private.$HFQDN\", \"public.$HFQDN\"]}/g" /etc/ejabberd/ejabberd.cfg
+		sed -i "s/max_user_sessions,\ \[{10,/max_user_sessions,\ \[{10000,/g" /etc/ejabberd/ejabberd.cfg
+		sed -i 's/{max_stanza_size, 65536}/{max_stanza_size, 2000000}/g' /etc/ejabberd/ejabberd.cfg
+		sed -i 's/{max_stanza_size, 131072}/{max_stanza_size, 2000000}/g' /etc/ejabberd/ejabberd.cfg
+		sed -i 's/{shaper, normal, {maxrate, 1000}}/{shaper, normal, {maxrate, 500000}}/g' /etc/ejabberd/ejabberd.cfg
+		sed -i 's/{shaper, fast, {maxrate, 50000}}/{shaper, fast, {maxrate, 500000}}/g' /etc/ejabberd/ejabberd.cfg
+		sed -i 's/{mod_offline/%%{mod_offline/g' /etc/ejabberd/ejabberd.cfg
+		chown ejabberd.ejabberd /etc/ejabberd/ejabberd.cfg
+		/etc/init.d/ejabberd start
+	else
+		DEBUG echo "Ejabberd has already been modified (or atleast the hosts line has). No Changes made."
+fi
+} #reconfigure_ejabberd()
+add_ejabber_user()
+{
+		USER=$1
+		HOST=$2
+		PASSWD=$3
+                if ! status=$(ejabberdctl register "$USER" "$HOST" "$PASSWD") ; then
+                    if echo $status | grep -q "already registered" ; then
+                       DEBUG echo "User \"$USER@$HOST\" is already registered. Password IS NOT changed."
+                    else
+                        echo "Can't register user \"$USER@$HOST\"."
+                    fi
+                else
+                    DEBUG echo "User \"$USER@$HOST\" is registered successfully."
+                fi
+
+
+}
+
+register_ejabberd_users()
+{
+    db_get opensrf/ejabber_password
+    EJABBER_PASS=$RET
+    #if [ -n "$USER" -a -n "$PASSWD" ]; then
+        DEBUG echo -n "Waiting for ejabberd to register admin user"
+
+        if ejabberdctl status >/dev/null || test $? = 1 ; then
+            # Ejabberd is starting ($? = 1) or running ($? = 0) already.
+            cnt=0
+            flag=1
+            while ! ejabberdctl status >/dev/null ; do
+                DEBUG echo -n "."
+                cnt=`expr $cnt + 1`
+                if [ $cnt -ge 60 ] ; then
+                    echo
+                    echo "Can't register Ejabberd users."
+                    echo -n "Ejabberd is taking too long to start!"
+                    flag=0
+                    break
+                fi
+                sleep 1
+            done
+
+            echo
+            if [ $flag -eq 1 ] ; then
+			add_ejabber_user router private.$HFQDN $EJABBER_PASS
+                        add_ejabber_user opensrf private.$HFQDN $EJABBER_PASS
+                        add_ejabber_user router public.$HFQDN $EJABBER_PASS
+                        add_ejabber_user opensrf public.$HFQDN $EJABBER_PASS
+
+#####
+#                if ! status=$(ejabberdctl register "$USER" "$HOST" "$PASSWD") ; then
+#                    if echo $status | grep -q "already registered" ; then
+#                        echo "Admin user \"$USER@$HOST\" is already registered. Password IS NOT changed."
+#                    else
+#                        echo "Can't register admin user \"$USER@$HOST\"."
+#                    fi
+#                else
+#                    echo "Admin user \"$USER@$HOST\" is registered successfully."
+#                fi
+#####
+            fi
+        else
+            echo
+            echo "Can't register Ejabberd users!"
+            echo "Ejabberd server is not started."
+        fi
+    #fi
+} #register_ejabberd_users()
+
+
+#END EJABBERD SECTION
+
+modify_apache() 
+{
+#CODE SOURCE: Makefile.install
+
+for m in ssl osrf_http_translator osrf_json_gateway; do a2enmod $m > /dev/null; done;
+# adds a placeholder module so apxs will be happy
+if [ ! "$(grep mod_placeholder /etc/apache2/httpd.conf)" ]; then 
+                echo -e "#\n#LoadModule mod_placeholder /usr/lib/apache2/modules/mod_placeholder.so" >> /etc/apache2/httpd.conf
+		/etc/init.d/apache2 restart
+        fi
+
+} #modify_apache()
+
+configure_ld() 
+{
+LD_CONF_FILE="/etc/ld.so.conf.d/osrf.conf"
+#not sure if this should nuke the file first or just append
+# this violates sane naming policies, but follows the install docs
+if ! test -e $LD_CONF_FILE
+	then
+		DEBUG echo "Confgiuring library paths..."
+		echo "$OPENSRF_PREFIX/lib" > $LD_CONF_FILE
+		echo "/usr/local/lib" >> $LD_CONF_FILE
+		ldconfig 
+	else
+		DEBUG echo "Library paths already configured!"
+fi
+} #configure_ld()
+
+fix_osrf_perms()
+{
+#Fixperms... But why?
+DEBUG echo "Changing ownership of $OPENSRF_PREFIX (and everything in it) to opensrf..."
+mkdir -p $OPENSRF_PREFIX/var/run
+mkdir -p $OPENSRF_PREFIX/var/log
+mkdir -p $OPENSRF_PREFIX/var/lock
+chown -R opensrf:opensrf $OPENSRF_PREFIX
+}
+configure_opensrf_xml()
+{
+	db_get opensrf/ejabber_password
+	EJABBERPASS=$RET
+	cp $OPENSRF_PREFIX/conf/opensrf.xml.example $OPENSRF_PREFIX/conf/opensrf.xml
+	cp $OPENSRF_PREFIX/conf/opensrf_core.xml.example $OPENSRF_PREFIX/conf/opensrf_core.xml
+	cp $OPENSRF_PREFIX/conf/srfsh.xml.example $OPENSRF_PREFIX/conf/srfsh.xml
+	sed -i "s|d>password|d>$RET|g" $OPENSRF_PREFIX/conf/*.xml
+	mv $OPENSRF_PREFIX/conf/srfsh.xml /home/opensrf/.srfsh.xml && \
+	chown opensrf /home/opensrf/.srfsh.xml && chmod 600 /home/opensrf/.srfsh.xml
+        HFQDN=$(perl -MNet::Domain -e 'print Net::Domain::hostfqdn() . "\n";')
+	sed -i "s/<localhost>/<$HFQDN>/g" $OPENSRF_PREFIX/conf/opensrf.xml
+	sed -i "s/<\/localhost>/<\/$HFQDN>/g" $OPENSRF_PREFIX/conf/opensrf.xml
+	sed -i "s/\.localhost</\.$HFQDN</g" $OPENSRF_PREFIX/conf/opensrf_core.xml
+	sed -i "s/\.localhost</\.$HFQDN</g" $OPENSRF_PREFIX/conf/opensrf.xml
+	sed -i "s/\.localhost</\.$HFQDN</g" /home/opensrf/.srfsh.xml
+
+
+}
+
+update_rcd()
+{
+#Update rc.d
+update-rc.d opensrf defaults > /dev/null
+}
+modify_hosts_file
+add_opensrf_user
+reconfigure_ejabberd
+register_ejabberd_users
+modify_apache
+configure_ld
+fix_osrf_perms
+configure_opensrf_xml
+
+update_rcd
+
+db_stop
+DEBUG echo "Installation of OpenSRF completed!"
+DEBUG echo "Starting OpenSRF:"
+/etc/init.d/opensrf start
+exit 0

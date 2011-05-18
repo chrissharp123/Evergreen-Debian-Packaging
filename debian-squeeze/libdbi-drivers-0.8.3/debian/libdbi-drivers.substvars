@@ -1,0 +1,2 @@
+shlibs:Depends=libc6 (>= 2.3), libpq5 (>= 8.4~0cvs20090328)
+misc:Depends=

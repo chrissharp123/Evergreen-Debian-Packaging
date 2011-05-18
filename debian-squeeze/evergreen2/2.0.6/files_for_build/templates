@@ -1,0 +1,37 @@
+Template: evergreen-ils/eg_db_password
+Type: password
+Description: The password for the Evergreen database user:
+ Please provide the password for the Evergreen database user.
+ This password will be required to access the Evergreen database within postgresql.
+
+Template: evergreen-ils/verify_eg_db_password
+Type: password
+Description: The password for the Evergreen database user:
+ Please reenter the password for access to the Evergreen database within postgresql.
+
+Template: evergreen-ils/evergreen_admin_user
+Type: string 
+Description: The username for the Evergreen default admin user:
+ Please provide the username for the Evergreen default admin user.
+ This username will be required to access Evergreen as the admin user.
+
+Template: evergreen-ils/evergreen_admin_password
+Type: password
+Description: The password for the Evergreen default admin user:
+ Please provide the password for the Evergreen default admin user.
+ This password will be required for the Evergreen default admin user.
+
+Template: evergreen-ils/verify_evergreen_admin_password
+Type: password
+Description: The password for the Evergreen admin user:
+ Please reenter the password for the Evergreen admin user.
+
+Template: evergreen-ils/pass_nomatch
+Type: error
+Description: The passwords do not match!
+ The passwords you have typed do not match. Please try again.
+
+Template: evergreen-ils/admin_pass_nomatch                                            
+Type: error
+Description: The passwords do not match!
+ The passwords you have typed do not match. Please try again.

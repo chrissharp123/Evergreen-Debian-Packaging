@@ -1,0 +1,17 @@
+Source: evergreen-ils
+Section: devel
+Priority: extra
+Maintainer: Joshua Lamos <jlamos@georgialibraries.org>
+Build-Depends: libc6 (>= 2.3), libmemcached5 (>= 0.33), libncurses5 (>= 5.7+20100313), libreadline5 (>= 5.2), libxml2 (>= 2.7.4), debconf (>= 0.5), debhelper (>= 7.0.50~), autotools-dev, autoconf, automake, build-essential, libexpat1-dev, libgcrypt11-dev, libgdbm-dev, libperl-dev, libreadline5-dev, libxml2-dev, libxslt1-dev, python-dev, zlib1g-dev, apache2-prefork-dev, libncurses5-dev, libnspr4-dev, libssh2-1-dev
+Standards-Version: 3.8.4
+Homepage: http://open-ils.org
+
+Package: evergreen-ils
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}, opensrf, apache2-mpm-prefork, ejabberd, less, libapache2-mod-perl2, libcache-memcached-perl, libclass-dbi-sqlite-perl, libdatetime-format-builder-perl, libdatetime-format-mail-perl, libdatetime-perl, libdatetime-timezone-perl, liberror-perl, libfile-find-rule-perl, libfreezethaw-perl, liblog-log4perl-perl, libmodule-build-perl, libnet-jabber-perl, librpc-xml-perl, libtemplate-perl, libtest-pod-perl, libtie-ixhash-perl, libtool, libuniversal-require-perl, libunix-syslog-perl, libwww-perl, libxml-libxml-perl, libxml-libxslt-perl, libxml-simple-perl, memcached, ntpdate, pkg-config, psmisc, python-libxml2, python-setuptools, libdatetime-format-iso8601-perl, libjson-xs-perl, libnet-server-perl, libmemcached5, libmemcached-tools, libxml-libxml-perl, libxml-libxslt-perl, postgresql, postgresql-8.4, postgresql-contrib-8.4, postgresql-plperl-8.4, make, postgresql-client, libmarc-charset-perl, libmarc-xml-perl, libnet-z3950-zoom-perl, libyaz-dev, yaz, aspell, aspell-en, libbusiness-creditcard-perl, libbusiness-onlinepayment-authorizenet-perl, libbusiness-onlinepayment-perl, libclass-dbi-pg-perl, libdatetime-format-builder-perl, libdatetime-format-mail-perl, libdatetime-perl, libdatetime-timezone-perl, libemail-send-perl, libgd-graph3d-perl, libmarc-record-perl, libole-storage-lite-perl, libpq-dev, libspreadsheet-writeexcel-perl, libtext-aspell-perl, libtext-csv-perl, libtext-csv-perl, spidermonkey, spidermonkey-perl (= 0.20), libdbi (= 0.8.3), libdbi-drivers (= 0.8.3), libbusiness-isbn-data-perl, libbusiness-isbn-perl, libdatetime-set-perl, libdbd-pg-perl, libnet-ssh2-perl, libparent-perl, libuuid-tiny-perl, postgresql-client-8.4, libssh2-1, libnspr4-0d, libncurses5 
+Description: Evergreen Library Management Sofware.
+ Evergreen is open-source, consortial-quality 
+ library software to help library users find 
+ library materials and to help libraries manage, 
+ catalog, and circulate those materials. 
+

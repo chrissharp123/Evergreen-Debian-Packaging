@@ -1,0 +1,164 @@
+#!/bin/bash
+set -e
+
+. /usr/share/debconf/confmodule
+HFQDN=$(perl -MNet::Domain -e 'print Net::Domain::hostfqdn() . "\n";')
+#TODO?: pass this in from the build process somehow.
+OPENSRF_PREFIX="/openils"
+
+
+#simple fuction to only execute if _DEBUG is set to something, i.e. #> _DEBUG=1 apt-get install evergreen-ils
+DEBUG()
+{
+        if [ $_DEBUG > 0 ]; then  $@;fi
+}
+
+install_cpan_modules () 
+{
+for m in Business::EDI Library::CallNumber::LC Net::Z3950::Simple2ZOOM SRU JSON::XS MARC::Record MARC::File::XML; do PERL_MM_USE_DEFAULT=1 perl -MCPAN -e "install \"$m\";"; done
+for m in Class::DBI::Frozen::301; do \
+                echo "force install $m" | PERL_MM_USE_DEFAULT=1 perl -MCPAN -e shell ;\
+        done
+
+}
+fixup_apache() 
+{
+
+for m in expires include proxy proxy_http rewrite ssl xmlent idlchunk; do a2enmod $m > /dev/null; done;
+
+# keep the bad apache modules away --esi
+for m in deflate; do a2dismod $m > /dev/null; done;
+
+if [ ! -e "/etc/apache2/ssl" ] 
+	then
+	mkdir /etc/apache2/ssl
+	pushd /etc/apache2/ssl
+	openssl req -new -x509 -days 365 -nodes -out server.crt -keyout server.key -subj "/CN=$HFQDN"
+	popd
+fi
+
+sed -i "s/^Listen 443/#Listen 443/g" /etc/apache2/sites-available/eg.conf
+sed -i "s/^NameVirtualHost \*:80/#NameVirtualHost *:80/g" /etc/apache2/sites-available/eg.conf
+sed -i "s^APACHE_RUN_USER=www-data^APACHE_RUN_USER=opensrf^g" /etc/apache2/envvars
+/usr/sbin/a2dissite default > /dev/null
+/usr/sbin/a2ensite eg.conf > /dev/null
+/etc/init.d/apache2 restart
+}
+
+init_db()
+{
+#TODO: The create db command is copied from 1.6.1, not the one listed in the 2.0 install instructions.
+if su - postgres -c "createdb -E UNICODE evergreen" > /dev/null 2>&1
+	then
+		DEBUG echo "Setting up the evergreen database"
+		su - postgres -c "createlang plperl evergreen"
+		su - postgres -c "createlang plperlu evergreen"
+                su - postgres -c "createlang plpgsql evergreen"
+		su - postgres -c "psql -f /usr/share/postgresql/8.4/contrib/tablefunc.sql evergreen"
+		su - postgres -c "psql -f /usr/share/postgresql/8.4/contrib/tsearch2.sql evergreen"
+		su - postgres -c "psql -f /usr/share/postgresql/8.4/contrib/pgxml.sql evergreen"
+	else
+		DEBUG echo "evergreen database already exists! not doing anything."
+fi
+}
+add_eg_db_user() 
+{
+if [ `su - postgres -c "psql -A -t -c \"select count(*) from pg_roles where rolname='evergreen'\""` = "0" ]
+        then   
+                DEBUG echo "Database user evergreen doesn't exist! Creating..."
+
+
+                db_get evergreen-ils/eg_db_password || true
+                PASS=$RET
+                tfile=`mktemp`
+                if [ ! -f "$tfile" ]; then
+                        echo "ERROR Creating temp file!"
+                        return 1
+                fi
+		
+                DEBUG echo "creating tmp pw file as $tfile"
+cat << EOF > $tfile
+CREATE ROLE evergreen PASSWORD '$RET' SUPERUSER CREATEDB CREATEROLE INHERIT LOGIN;
+EOF
+		chown postgres.postgres $tfile
+		su - postgres -c "psql -f $tfile"
+                rm $tfile
+                DEBUG echo "Set user opensrf's password"
+        else   
+                DEBUG echo "EG DB USER already exists, so not doing anything!"
+
+
+fi
+
+
+
+}
+
+
+configure_opensrf_xml()
+{
+	db_get evergreen-ils/eg_db_password
+	DBPW=$RET
+        db_get opensrf/ejabber_password
+        EJABBERPASS=$RET
+        cp $OPENSRF_PREFIX/conf/opensrf.xml $OPENSRF_PREFIX/conf/opensrf.xml_orig
+        cp $OPENSRF_PREFIX/conf/opensrf_core.xml $OPENSRF_PREFIX/conf/opensrf_core.xml_orig
+	cp $OPENSRF_PREFIX/conf/opensrf.xml.evergreen.example $OPENSRF_PREFIX/conf/opensrf.xml
+	cp $OPENSRF_PREFIX/conf/opensrf_core.xml.evergreen.example $OPENSRF_PREFIX/conf/opensrf_core.xml
+	cp $OPENSRF_PREFIX/conf/oils_web.xml.example $OPENSRF_PREFIX/conf/oils_web.xml
+	sed -i "s|d>password|d>$RET|g" $OPENSRF_PREFIX/conf/opensrf.xml
+        sed -i "s|d>password|d>$RET|g" $OPENSRF_PREFIX/conf/opensrf_core.xml
+        sed -i "s/<localhost>/<$HFQDN>/g" $OPENSRF_PREFIX/conf/opensrf.xml
+        sed -i "s/<\/localhost>/<\/$HFQDN>/g" $OPENSRF_PREFIX/conf/opensrf.xml
+        sed -i "s/\.localhost</\.$HFQDN</g" $OPENSRF_PREFIX/conf/opensrf_core.xml
+        sed -i "s/\.localhost</\.$HFQDN</g" $OPENSRF_PREFIX/conf/opensrf.xml
+	sed -i "s^<user>postgres^<user>evergreen^g" $OPENSRF_PREFIX/conf/opensrf.xml
+        sed -i "s^<pw>postgres^<pw>$DBPW^g" $OPENSRF_PREFIX/conf/opensrf.xml
+
+}
+populate_db()
+{	DEBUG echo "Populating database"
+	db_get evergreen-ils/eg_db_password
+	EGDBPW=$RET
+	db_get evergreen-ils/evergreen_admin_user
+	ADMIN_USER=$RET
+        db_get evergreen-ils/evergreen_admin_password
+	ADMIN_PASS=$RET	
+	cd /openils/bin/ && perl eg_db_config.pl --update-config --service all --create-schema \
+	--create-offline --hostname localhost --port 5432 --user evergreen --password $EGDBPW \
+	--database evergreen --admin-user $ADMIN_USER --admin-pass $ADMIN_PASS
+}
+run_autogen()
+{
+	DEBUG echo "Running autogen"
+	cd /openils/bin
+	su - opensrf -c "cd /openils/bin && ./autogen.sh -c /openils/conf/opensrf_core.xml -u"
+}
+fix_openils_perms()
+{
+
+chown opensrf.opensrf /openils -R
+
+}
+
+install_cpan_modules
+fixup_apache
+init_db
+add_eg_db_user
+configure_opensrf_xml
+fix_openils_perms
+populate_db
+ldconfig
+/etc/init.d/opensrf restart
+run_autogen
+
+
+
+echo
+echo "The installation of Evergreen ILS is complete."
+printf "To start using Evergreen browse to :- \nhttp://$(hostname -f) \n$(ifconfig  | grep 'inet addr:'| grep -v '127.0.0.1' | cut -d: -f2 | awk '{ print "http://"$1}')\n"
+#######################################
+#Stop talking to debconf, must be after all db_ calls are done, but will hang script if not done
+db_stop
+ldconfig
+exit 0

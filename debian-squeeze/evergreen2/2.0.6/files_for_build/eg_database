@@ -1,0 +1,102 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          postgresql
+# Required-Start:    $local_fs $remote_fs $network $syslog 
+# Required-Stop:     $local_fs $remote_fs $network $syslog 
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# X-Interactive:     true
+# Short-Description: Start/stop OpenSRF Services
+### END INIT INFO
+. /lib/lsb/init-functions
+
+OPENILS_BASE="/openils"
+OPENILS_CORE="${OPENILS_BASE}/conf/opensrf_core.xml"
+SRU_LOG="${OPENILS_BASE}/var/log/sru.log"
+
+PIDFILES="${OPENILS_BASE}/var/run"
+SIP_CONF="${OPENILS_BASE}/conf/oils_sip.xml"
+
+REP_LOCK="${OPENILS_BASE}/var/lock/reporter-LOCK"
+REP_NAME="Clark Kent, waiting for trouble"
+
+sru_name='simple2zoom'
+
+export PATH=$PATH:${OPENILS_BASE}/bin
+
+if [ $(whoami) != 'opensrf' ]; then
+ PERL5LIB='/openils/lib/perl5:$PERL5LIB';
+fi;
+
+cluster_start_database() {
+        sleep 1
+	log_daemon_msg "Starting Evergreen Database"
+	/etc/init.d/postgresql start
+	sleep 2
+	log_daemon_msg "Restarting Evergreen OpenSRF:"
+	for HEAD in $(cat /etc/hosts | grep head | awk '{ print $NF }')
+        	do
+        	echo "Stopping OpenSRF on $HEAD"
+		su - opensrf -c "ssh $HEAD /openils/bin/osrf_ctl.sh -a stop_all"
+		echo "Starting OpenSRF on $HEAD"
+		su - opensrf -c "ssh $HEAD /openils/bin/osrf_ctl.sh -a start_all"
+	done
+}
+
+start_database() {
+	sleep 1
+        log_daemon_msg "Starting Evergreen Database"
+        /etc/init.d/postgresql start
+        sleep 2
+        log_daemon_msg "Restarting Evergreen OpenSRF:"
+	echo "Stopping OpenSRF $(hostname -f)"
+	su - opensrf -c /openils/bin/osrf_ctl.sh -a stop_all
+	echo "Starting OpenSRF on $(hostname -f)"
+	su - opensrf -c /openils/bin/osrf_ctl.sh -a start_all
+}
+
+stop_database() {
+	log_daemon_msg "Stopping Evergreen Database"
+	/etc/init.d/postgresql stop
+	#for HEAD in $(cat /etc/hosts | grep head | awk '{ print $NF }')
+        #        do
+        #        echo "Stopping OpenSRF on $HEAD"
+        #        su - opensrf -c "ssh $HEAD /openils/bin/osrf_ctl.sh -a stop_all"
+        #        echo "Starting OpenSRF on $HEAD"
+        #        su - opensrf -c "ssh $HEAD /openils/bin/osrf_ctl.sh -a start_all"
+        #done
+	sleep 3
+}
+
+
+case "$1" in
+    start)
+        start_database
+    ;;
+    stop)
+        stop_database
+    ;;
+    restart)
+	log_daemon_msg "Restarting Evergreen Database:"
+        stop_database
+	sleep 2
+	log_daemon_msg "Restarting Evergreen OpenSRF:"
+        start_database
+    ;;
+*)
+        echo " * Usage: /etc/init.d/eg_opensrf {start|stop|restart}"
+        exit 1
+    ;;
+esac;
+
+
+
+
+#for HEAD in $(cat /etc/hosts | grep head | awk '{ print $NF }')
+#	do
+#	echo $HEAD
+#done
+
+#su - opensrf -c "ssh  brick01-head /openils/bin/osrf_ctl.sh -a start_all"
+
+#su - opensrf -c "ssh  brick01-head /openils/bin/osrf_ctl.sh -a stop_all"
